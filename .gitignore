@@ -1,6 +1,6 @@
 /node_modules
 /config
-/client
+
 package-lock.json
 *.env
 .cache
