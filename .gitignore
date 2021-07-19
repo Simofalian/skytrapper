@@ -1,0 +1,7 @@
+/node_modules
+/config/
+/client
+.package-lock.json
+*.env
+.cache
+https://github.com/Simofalian/devapp.git
