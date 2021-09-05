@@ -4,6 +4,14 @@ const catchAsync = require("./../Utils/catchAsync");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const AppError = require("./../Utils/appError");
+
+const filterObj = (obj, ...allowedFields) => {
+  const newObj = {};
+  Object.keys(obj).forEach((el) => {
+    if (allowedFields.includes(el)) newObj[el] = obj[el];
+  });
+  return newObj;
+};
 exports.getAllUsers = catchAsync(async (req, res, next) => {
   const users = await User.find();
 
@@ -44,64 +52,59 @@ exports.registerUser = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.login = catchAsync(async (req, res, next) => {
-  // const {email, password} = req.body
-
-  const { email, password } = req.body;
-
-  //find user by email
-  await User.findOne({ email }).then((user) => {
-    if (!user) {
-      return next(new AppError("User not found", 404));
-    }
-    //check password match
-
-    bcrypt.compare(password, user.password).then((isMatch) => {
-      //user matched
-
-      if (isMatch) {
-        const payload = {
-          id: user.id,
-          name: user.name,
-          avatar: user.avatar,
-        };
-        jwt.sign(
-          payload,
-          process.env.JWT_SECRET_KEY,
-          { expiresIn: process.env.JWT_EXPIRES_IN },
-          (err, token) => {
-            if (err) {
-              return res.status(400).json({ error: err.message });
-            } else {
-              return res.json({
-                status: "success",
-                token: `Bearer : ${token}`,
-              });
-            }
-          }
-        );
-      } else {
-        return res
-          .status(400)
-          .json({ user: "User not found or incorrect password" });
-      }
-    });
-  });
-});
-
 exports.getUser = catchAsync(async (req, res, next) => {
   const user = await User.findById({ _id: req.params.id }).then((user) => {
     if (!user) return next(new AppError("user not found", 404));
     res.status(200).json({
       status: "success",
-      data: { user },
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+      avatar: user.avatar,
+      data: {
+        user,
+      },
     });
   });
 });
 
+exports.updateMe = catchAsync(async (req, res, next) => {
+  //1) create error if the user try to change password data
+  if (req.body.password || req.body.passwordConfirm) {
+    return next(
+      new AppError(
+        'This route is not for changing password, please login and use "update my password" to change your password',
+        401
+      )
+    );
+  }
+
+  //2) get user using id and
+  const filteredBody = filterObj(req.body, "name", "email");
+  const updatedUser = await User.findByIdAndUpdate(req.user.id, filteredBody, {
+    new: true,
+    runValidator: true,
+  });
+  res.status(200).json({
+    status: "success",
+    data: { user: updatedUser },
+  });
+});
+
+exports.getMe = (req, res, next) => {
+  req.params.id = req.user.id;
+  next();
+};
+exports.deleteMe = catchAsync(async (req, res, next) => {
+  await User.findByIdAndUpdate(req.user._id, { active: false });
+  res.status(204).json({
+    status: "success",
+    data: null,
+  });
+});
 exports.deleteUser = catchAsync(async (req, res, next) => {
   await User.findByIdAndDelete({ _id: req.params.id }).then((user) => {
-    res.status(200).json({
+    res.status(204).json({
       status: "success",
       message: "user deleted successfully",
     });

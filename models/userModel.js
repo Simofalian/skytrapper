@@ -2,58 +2,62 @@ const crypto = require("crypto"); //inbuilt node module
 const mongoose = require("mongoose");
 const validator = require("validator");
 const bcrypt = require("bcryptjs");
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  email: {
-    type: String,
-    required: [true, "please provide a valid email"],
-    unique: true,
-    lowercase: true,
-    validate: [validator.isEmail, "Please provide a valid email"],
-  },
-  role: { type: String, enum: ["user", "admin", "manager"], default: "user" },
-  photo: { type: String },
-  company: { type: String },
-  profession: { type: Array },
-  twitter: { type: String },
-  facebook: { type: String },
-  tiktok: { type: String },
-  instagram: { type: String },
-  password: {
-    type: String,
-    required: [true, "Please provide a password"],
-    minlength: 8,
-    select: false,
-  },
-  passwordConfirm: {
-    type: String,
-    required: [true, "Please confirm your password"],
-    validate: {
-      //this works on Create and Save only
-
-      validator: function (el) {
-        return el === this.password;
-      },
-      message: "passwords do no match",
+const userSchema = mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
     },
-  },
-  avatar: { type: String },
-  dateofbirth: { type: Date },
-  skillsets: { type: Array },
-  gender: { type: String },
+    email: {
+      type: String,
+      required: [true, "please provide a valid email"],
+      unique: true,
+      lowercase: true,
+      validate: [validator.isEmail, "Please provide a valid email"],
+    },
+    role: { type: String, enum: ["user", "admin", "manager"], default: "user" },
+    photo: { type: String },
+    company: { type: String },
+    profession: { type: Array },
+    twitter: { type: String },
+    facebook: { type: String },
+    tiktok: { type: String },
+    instagram: { type: String },
+    password: {
+      type: String,
+      required: [true, "Please provide a password"],
+      minlength: 8,
+      select: false,
+    },
+    passwordConfirm: {
+      type: String,
+      required: [true, "Please confirm your password"],
+      validate: {
+        //this works on Create and Save only
 
-  date: {
-    type: Date,
-    default: Date.now,
+        validator: function (el) {
+          return el === this.password;
+        },
+        message: "passwords do no match",
+      },
+    },
+    avatar: { type: String },
+    dateofbirth: { type: Date },
+    skillsets: { type: Array },
+    gender: { type: String },
+
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    passwordChangedAt: { type: Date },
+    passwordResetToken: { type: String },
+    passwordResetExpires: { type: Date },
+    active: { type: Boolean, default: true, select: false },
   },
-  passwordChangedAt: { type: Date },
-  passwordResetToken: { type: String },
-  passwordResetExpires: { type: Date },
-});
+  { timestamps: true }
+);
 userSchema.pre("save", async function (next) {
   // only run this function if the password was modified
   if (!this.isModified("password")) return next();
@@ -64,6 +68,18 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
+userSchema.pre("save", function (next) {
+  if (!this.isModified("password") || this.isNew) return next();
+
+  this.passwordChangedAt = Date.now() - 1500;
+  next();
+});
+
+userSchema.pre(/^find/, function (next) {
+  // this poing to current query that start with find
+  this.find({ active: { $ne: false } });
+  next();
+});
 //instance method ---meaning it can be accessed from any user related resource as eg user.correctPassword()
 
 userSchema.methods.correctPassword = async function (
@@ -99,6 +115,7 @@ userSchema.methods.createPasswordResetToken = function () {
 
   return resetToken;
 };
+
 const User = mongoose.model("user", userSchema);
 
 module.exports = User;
